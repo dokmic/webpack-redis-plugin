@@ -1,0 +1,17 @@
+{
+  "extends": "google",
+  "env": {
+    "es6": true,
+    "node": true
+  },
+  "rules": {
+    "arrow-parens": ["warn", "as-needed"],
+    "comma-dangle": ["warn", "only-multiline"],
+    "max-len": "warn",
+    "no-var": "warn",
+    "object-curly-spacing": ["warn", "always"],
+    "one-var": ["warn", "always"],
+    "quote-props": ["error", "consistent-as-needed"]
+  },
+  "globals": {}
+}
