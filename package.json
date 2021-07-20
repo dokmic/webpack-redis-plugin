@@ -18,7 +18,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "codecov": "codecov"
+    "coverage": "codecov"
   },
   "engines": {
     "node": ">=6.4.0"
