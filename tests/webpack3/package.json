@@ -1,0 +1,13 @@
+{
+  "name": "webpack-redis-plugin-demo-webpack3",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "webpack"
+  },
+  "devDependencies": {
+    "webpack": "^3.12",
+    "webpack-redis-plugin": "file:../.."
+  }
+}

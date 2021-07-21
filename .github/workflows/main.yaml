@@ -24,10 +24,35 @@ jobs:
       - run: npm run test
       - run: npm run coverage
 
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    strategy:
+      matrix:
+        webpack: [2, 3, 4]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+      - run: npm --prefix tests/webpack${{ matrix.webpack }} install
+      - run: npm --prefix tests/webpack${{ matrix.webpack }} run build
+      - run: >-
+          docker exec ${{ job.services.redis.id }} redis-cli --raw get webpack-redis-plugin
+          | diff --brief --ignore-space-change - tests/webpack${{ matrix.webpack }}/dist/main.js
+
   publish:
     name: Publish
     if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
-    needs: [tests]
+    needs: [tests, integration]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
