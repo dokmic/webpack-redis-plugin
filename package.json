@@ -33,7 +33,8 @@
     "codecov": "^3.0",
     "eslint": "^4.0",
     "eslint-config-google": "^0.9",
-    "jest": "^23.0"
+    "jest": "^23.0",
+    "typescript": "^4.4"
   },
   "jest": {
     "testEnvironment": "node",
