@@ -1,9 +1,9 @@
+import { callbackify, promisify } from 'util';
 import { ClientOpts, RedisClient, createClient } from 'redis';
-import { Asset, Compilation, Compiler, WebpackPluginInstance } from 'webpack';
+import { Asset, Compilation, Compiler, WebpackError, WebpackPluginInstance } from 'webpack';
 
 type AsyncHook = Compiler['hooks']['afterEmit'];
 type AsyncHookCallback = Parameters<AsyncHook['tapAsync']>[1];
-type InnerCallback = Parameters<AsyncHookCallback>[1];
 type Source = Asset['source'];
 
 declare module 'webpack' {
@@ -53,65 +53,85 @@ interface WebpackRedisPluginOptions {
  * Webpack Redis Plugin
  */
 export default class WebpackRedisPlugin implements WebpackPluginInstance {
+  /**
+   * Default filter callback.
+   */
+  static filter(): boolean {
+    return true;
+  }
+
+  /**
+   * Default transform callback.
+   * @param key Relative asset path.
+   * @param asset Webpack asset.
+   * @returns A key-value pair.
+   */
+  static transform(key: string, asset: Source): KeyValuePair {
+    return { key, value: asset.source() };
+  }
+
   private client?: RedisClient;
+
+  private options: WebpackRedisPluginOptions & Required<Pick<WebpackRedisPluginOptions, 'filter' | 'transform'>>;
 
   /**
    * @param options Plugin options.
    */
-  constructor(private options: WebpackRedisPluginOptions = {}) {}
-
-  protected getClient(): RedisClient {
-    return this.client || (this.client = createClient(this.options.config));
+  constructor({ config, filter = WebpackRedisPlugin.filter, transform = WebpackRedisPlugin.transform }: WebpackRedisPluginOptions = {}) {
+    this.options = {
+      config,
+      filter,
+      transform,
+    };
   }
 
-  protected save({ key, value }: KeyValuePair): Promise<void> {
+  protected getClient(): RedisClient {
+    if (!this.client) {
+      this.client = createClient(this.options.config)
+    }
+
+    return this.client;
+  }
+
+  protected async save({ key, value }: KeyValuePair): Promise<void> {
     const client = this.getClient();
 
-    return new Promise((resolve, reject) => {
-      client.addListener('error', reject);
-      client.set(key, value.toString(), () => {
-        client.removeListener('error', reject);
-        resolve();
-      });
-    });
+    await promisify(client.set).call(client, key, value.toString());
   }
 
   private getAssets(compilation: Compilation) {
-    return Object.keys(compilation.assets)
-      .filter(key => !this.options.filter
-        || this.options.filter(key, compilation.assets[key]))
-      .map(key => this.options.transform
-        ? this.options.transform(key, compilation.assets[key])
-        : { key, value: compilation.assets[key].source() }
-      );
+    return Object.entries(compilation.assets)
+      .filter(([name, source]) => this.options.filter(name, source))
+      .map(([name, source]) => this.options.transform(name, source));
   }
 
-  private afterEmit(compilation: Compilation, callback?: InnerCallback) {
+  private async afterEmit(compilation: Compilation) {
     if (compilation.errors.length) {
-      return callback?.();
+      return;
     }
 
-    return Promise.all(
-      this
-        .getAssets(compilation)
-        .map(this.save.bind(this))
-    )
-    .then(() => this.getClient().quit())
-    .catch(error => {
-      this.getClient().end(true);
-      compilation.errors.push(error);
-    })
-    .then(() => callback?.());
+    const client = this.getClient();
+    try {
+      const assets = this.getAssets(compilation);
+
+      await Promise.all(assets.map(this.save.bind(this)));
+      await promisify(client.quit).call(client);
+    } catch (error) {
+      client.end(true);
+      compilation.errors.push(new WebpackError(error instanceof Error ? error.message : error as string));
+    }
   }
 
-  apply(compiler: Compiler) {
-    if (compiler.hooks) {
-      compiler.hooks.afterEmit.tap({
-        name: 'RedisPlugin',
-        stage: Infinity
-      }, this.afterEmit.bind(this));
-    } else {
-      compiler.plugin?.('after-emit', this.afterEmit.bind(this));
+  apply(compiler: Compiler): void {
+    if (!compiler.hooks) {
+      compiler.plugin?.('after-emit', callbackify(this.afterEmit).bind(this));
+
+      return;
     }
+
+    compiler.hooks.afterEmit.tapPromise({
+      name: 'RedisPlugin',
+      stage: Infinity
+    }, this.afterEmit.bind(this));
   }
 }
