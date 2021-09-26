@@ -1,4 +1,4 @@
-const WebpackRedisPlugin = require('webpack-redis-plugin');
+const { WebpackRedisPlugin } = require('webpack-redis-plugin');
 
 module.exports = {
   mode: 'development',

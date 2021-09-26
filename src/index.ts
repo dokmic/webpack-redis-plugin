@@ -52,7 +52,7 @@ interface WebpackRedisPluginOptions {
 /**
  * Webpack Redis Plugin
  */
-export default class WebpackRedisPlugin implements WebpackPluginInstance {
+export class WebpackRedisPlugin implements WebpackPluginInstance {
   /**
    * Default filter callback.
    */
@@ -135,3 +135,5 @@ export default class WebpackRedisPlugin implements WebpackPluginInstance {
     }, this.afterEmit.bind(this));
   }
 }
+
+export default WebpackRedisPlugin;

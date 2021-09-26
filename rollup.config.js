@@ -8,7 +8,7 @@ export default [
       {
         dir: 'dist',
         entryFileNames: '[name].js',
-        exports: 'auto',
+        exports: 'named',
         format: 'cjs',
         sourcemap: true,
         sourcemapExcludeSources: true,
@@ -16,7 +16,7 @@ export default [
       {
         dir: 'dist',
         entryFileNames: '[name].mjs',
-        exports: 'auto',
+        exports: 'named',
         format: 'esm',
         sourcemap: true,
         sourcemapExcludeSources: true,

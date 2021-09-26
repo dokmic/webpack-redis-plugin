@@ -1,7 +1,7 @@
 import { mocked } from 'ts-jest/utils';
 import redis, { RedisClient, createClient } from 'redis';
 import { Compilation, Compiler, WebpackError } from 'webpack';
-import WebpackRedisPlugin from '.';
+import { WebpackRedisPlugin } from '.';
 
 describe('WebpackRedisPlugin', () => {
   let plugin: WebpackRedisPlugin;
