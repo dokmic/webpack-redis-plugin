@@ -10,22 +10,22 @@ describe('WebpackRedisPlugin', () => {
   let options: jest.Mocked<Required<Required<ConstructorParameters<typeof WebpackRedisPlugin>>[0]>>;
 
   beforeEach(() => {
-    client = ({
+    client = {
       set: jest.fn((key, value, callback) => callback()),
       quit: jest.fn((callback) => callback()),
       end: jest.fn(),
-    } as unknown) as typeof client;
-    compiler = ({
+    } as unknown as typeof client;
+    compiler = {
       hooks: {
         afterEmit: { tapPromise: jest.fn() },
       },
       plugin: jest.fn(),
-    } as unknown) as typeof compiler;
-    options = ({
+    } as unknown as typeof compiler;
+    options = {
       config: {},
       filter: jest.fn(WebpackRedisPlugin.filter),
       transform: jest.fn(WebpackRedisPlugin.transform),
-    } as unknown) as typeof options;
+    } as unknown as typeof options;
     plugin = new WebpackRedisPlugin(options);
 
     redis.createClient = jest.fn(() => client);
@@ -52,16 +52,16 @@ describe('WebpackRedisPlugin', () => {
       let compilation: jest.Mocked<Compilation>;
 
       beforeEach(() => {
-        compilation = ({
+        compilation = {
           assets: {
             asset1: { source: () => 'source1' },
             asset2: { source: () => 'source2' },
           },
           errors: [],
-        } as unknown) as typeof compilation;
+        } as unknown as typeof compilation;
 
         plugin.apply(compiler);
-        ([[, afterEmit]] = mocked(compiler.hooks.afterEmit.tapPromise).mock.calls);
+        [[, afterEmit]] = mocked(compiler.hooks.afterEmit.tapPromise).mock.calls;
       });
 
       it('should not run if there are compilation errors', async () => {
@@ -128,7 +128,9 @@ describe('WebpackRedisPlugin', () => {
 
       it('should handle errors', async () => {
         const error = new Error('something');
-        client.set.mockImplementationOnce(() => { throw error; });
+        client.set.mockImplementationOnce(() => {
+          throw error;
+        });
 
         await afterEmit(compilation);
 

@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 import { callbackify, promisify } from 'util';
 import { ClientOpts, RedisClient, createClient } from 'redis';
 import { Asset, Compilation, Compiler, WebpackError, WebpackPluginInstance } from 'webpack';
@@ -7,6 +8,7 @@ type AsyncHookCallback = Parameters<AsyncHook['tapAsync']>[1];
 type Source = Asset['source'];
 
 declare module 'webpack' {
+  // eslint-disable-next-line no-shadow
   class Compiler {
     plugin?(hook: 'after-emit', fn: AsyncHookCallback): void;
   }
@@ -77,7 +79,11 @@ export class WebpackRedisPlugin implements WebpackPluginInstance {
   /**
    * @param options Plugin options.
    */
-  constructor({ config, filter = WebpackRedisPlugin.filter, transform = WebpackRedisPlugin.transform }: WebpackRedisPluginOptions = {}) {
+  constructor({
+    config,
+    filter = WebpackRedisPlugin.filter,
+    transform = WebpackRedisPlugin.transform,
+  }: WebpackRedisPluginOptions = {}) {
     this.options = {
       config,
       filter,
@@ -87,7 +93,7 @@ export class WebpackRedisPlugin implements WebpackPluginInstance {
 
   protected getClient(): RedisClient {
     if (!this.client) {
-      this.client = createClient(this.options.config)
+      this.client = createClient(this.options.config);
     }
 
     return this.client;
@@ -118,7 +124,7 @@ export class WebpackRedisPlugin implements WebpackPluginInstance {
       await promisify(client.quit).call(client);
     } catch (error) {
       client.end(true);
-      compilation.errors.push(new WebpackError(error instanceof Error ? error.message : error as string));
+      compilation.errors.push(new WebpackError(error instanceof Error ? error.message : (error as string)));
     }
   }
 
@@ -129,10 +135,13 @@ export class WebpackRedisPlugin implements WebpackPluginInstance {
       return;
     }
 
-    compiler.hooks.afterEmit.tapPromise({
-      name: 'RedisPlugin',
-      stage: Infinity
-    }, this.afterEmit.bind(this));
+    compiler.hooks.afterEmit.tapPromise(
+      {
+        name: 'RedisPlugin',
+        stage: Infinity,
+      },
+      this.afterEmit.bind(this),
+    );
   }
 }
 
