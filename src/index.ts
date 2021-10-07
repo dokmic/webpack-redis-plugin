@@ -3,6 +3,10 @@ import { callbackify, promisify } from 'util';
 import { ClientOpts, RedisClient, createClient } from 'redis';
 import { Asset, Compilation, Compiler, WebpackError, WebpackPluginInstance } from 'webpack';
 
+type AssetEmittedHook = Compiler['hooks']['assetEmitted'];
+type AssetEmittedCallback = Parameters<AssetEmittedHook['tapAsync']>[1];
+type AssetEmittedInfo = Parameters<AssetEmittedCallback>[1];
+
 type AsyncHook = Compiler['hooks']['afterEmit'];
 type AsyncHookCallback = Parameters<AsyncHook['tapAsync']>[1];
 type Source = Asset['source'];
@@ -51,6 +55,14 @@ interface WebpackRedisPluginOptions {
   transform?(key: string, asset: Source): KeyValuePair;
 }
 
+function isWebpackBelow4(compiler: Compiler) {
+  return !compiler.hooks;
+}
+
+function isWebpackBelow5(compiler: Compiler) {
+  return !compiler.webpack?.version;
+}
+
 /**
  * Webpack Redis Plugin
  */
@@ -89,50 +101,60 @@ export class WebpackRedisPlugin implements WebpackPluginInstance {
       filter,
       transform,
     };
+
+    this.afterEmit = this.afterEmit.bind(this);
+    this.assetEmitted = this.assetEmitted.bind(this);
   }
 
   protected getClient(): RedisClient {
-    if (!this.client) {
-      this.client = createClient(this.options.config);
-    }
-
-    return this.client;
-  }
-
-  protected async save({ key, value }: KeyValuePair): Promise<void> {
-    const client = this.getClient();
-
-    await promisify(client.set).call(client, key, value.toString());
-  }
-
-  private getAssets(compilation: Compilation) {
-    return Object.entries(compilation.assets)
-      .filter(([name, source]) => this.options.filter(name, source))
-      .map(([name, source]) => this.options.transform(name, source));
+    return createClient(this.options.config);
   }
 
   private async afterEmit(compilation: Compilation) {
-    if (compilation.errors.length) {
-      return;
+    if (isWebpackBelow5(compilation.compiler)) {
+      await Promise.all(
+        Object.entries(compilation.assets).map(([name, source]) => this.assetEmitted(name, { compilation, source })),
+      );
     }
 
-    const client = this.getClient();
-    try {
-      const assets = this.getAssets(compilation);
+    if (this.client) {
+      await promisify(this.client.quit).call(this.client);
+    }
+  }
 
-      await Promise.all(assets.map(this.save.bind(this)));
-      await promisify(client.quit).call(client);
+  private async assetEmitted(name: string, info: Pick<AssetEmittedInfo, 'compilation' | 'source'>) {
+    try {
+      if (!this.options.filter(name, info.source)) {
+        return;
+      }
+
+      const { key, value } = this.options.transform(name, info.source);
+
+      if (!this.client) {
+        this.client = this.getClient();
+      }
+
+      await promisify(this.client.set).call(this.client, key, value.toString());
     } catch (error) {
-      client.end(true);
-      compilation.errors.push(new WebpackError(error instanceof Error ? error.message : (error as string)));
+      info.compilation.errors.push(new WebpackError(error instanceof Error ? error.message : (error as string)));
     }
   }
 
   apply(compiler: Compiler): void {
-    if (!compiler.hooks) {
-      compiler.plugin?.('after-emit', callbackify(this.afterEmit).bind(this));
+    if (isWebpackBelow4(compiler)) {
+      compiler.plugin?.('after-emit', callbackify(this.afterEmit));
 
       return;
+    }
+
+    if (!isWebpackBelow5(compiler)) {
+      compiler.hooks.assetEmitted.tapPromise(
+        {
+          name: 'RedisPlugin',
+          stage: Infinity,
+        },
+        this.assetEmitted,
+      );
     }
 
     compiler.hooks.afterEmit.tapPromise(
@@ -140,7 +162,7 @@ export class WebpackRedisPlugin implements WebpackPluginInstance {
         name: 'RedisPlugin',
         stage: Infinity,
       },
-      this.afterEmit.bind(this),
+      this.afterEmit,
     );
   }
 }

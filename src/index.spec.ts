@@ -1,26 +1,33 @@
 import { mocked } from 'ts-jest/utils';
-import redis, { RedisClient, createClient } from 'redis';
-import { Compilation, Compiler, WebpackError } from 'webpack';
+import { RedisClient, createClient } from 'redis';
+import { Compilation, Compiler } from 'webpack';
 import { WebpackRedisPlugin } from '.';
 
+jest.mock('redis', () => ({ createClient: jest.fn() }));
+
 describe('WebpackRedisPlugin', () => {
-  let plugin: WebpackRedisPlugin;
   let client: jest.Mocked<RedisClient>;
+  let compilation: jest.Mocked<Compilation>;
   let compiler: jest.Mocked<Compiler>;
   let options: jest.Mocked<Required<Required<ConstructorParameters<typeof WebpackRedisPlugin>>[0]>>;
+  let plugin: WebpackRedisPlugin;
 
   beforeEach(() => {
     client = {
       set: jest.fn((key, value, callback) => callback()),
       quit: jest.fn((callback) => callback()),
-      end: jest.fn(),
     } as unknown as typeof client;
     compiler = {
       hooks: {
         afterEmit: { tapPromise: jest.fn() },
+        assetEmitted: { tapPromise: jest.fn() },
       },
       plugin: jest.fn(),
+      webpack: {
+        version: '5.0.0',
+      },
     } as unknown as typeof compiler;
+    compilation = { compiler, errors: [] } as unknown as typeof compilation;
     options = {
       config: {},
       filter: jest.fn(WebpackRedisPlugin.filter),
@@ -28,70 +35,96 @@ describe('WebpackRedisPlugin', () => {
     } as unknown as typeof options;
     plugin = new WebpackRedisPlugin(options);
 
-    redis.createClient = jest.fn(() => client);
+    jest.clearAllMocks();
+    mocked(createClient).mockReturnValue(client);
   });
 
   describe('apply', () => {
-    it('should use hooks API', () => {
-      plugin.apply(compiler);
-
-      expect(compiler.hooks.afterEmit.tapPromise).toHaveBeenCalledTimes(1);
-      expect(compiler.plugin).toHaveBeenCalledTimes(0);
-    });
-
-    it('should use plugin method', () => {
-      delete (compiler as Partial<typeof compiler>).hooks;
-      plugin.apply(compiler);
-
-      expect(compiler.plugin).toHaveBeenCalledTimes(1);
-      expect(compiler.plugin).toHaveBeenCalledWith('after-emit', expect.any(Function));
-    });
-
-    describe('afterEmit', () => {
-      let afterEmit: Parameters<typeof compiler.hooks.afterEmit.tapPromise>[1];
-      let compilation: jest.Mocked<Compilation>;
-
+    describe('when webpack 3 and below', () => {
       beforeEach(() => {
-        compilation = {
+        delete (compiler as Partial<typeof compiler>).hooks;
+        delete (compiler as Partial<typeof compiler>).webpack;
+
+        plugin.apply(compiler);
+      });
+
+      it('should use plugin method', () => {
+        expect(compiler.plugin).toHaveBeenCalledTimes(1);
+        expect(compiler.plugin).toHaveBeenCalledWith('after-emit', expect.any(Function));
+      });
+    });
+
+    describe('when webpack 4', () => {
+      beforeEach(async () => {
+        delete (compiler as Partial<typeof compiler>).webpack;
+
+        plugin.apply(compiler);
+        const [[, afterEmit]] = mocked(compiler.hooks.afterEmit.tapPromise).mock.calls;
+        await afterEmit({
+          ...compilation,
           assets: {
             asset1: { source: () => 'source1' },
             asset2: { source: () => 'source2' },
           },
-          errors: [],
-        } as unknown as typeof compilation;
-
-        plugin.apply(compiler);
-        [[, afterEmit]] = mocked(compiler.hooks.afterEmit.tapPromise).mock.calls;
+        } as unknown as typeof compilation);
       });
 
-      it('should not run if there are compilation errors', async () => {
-        compilation.errors.push(new WebpackError('error'));
-        await afterEmit(compilation);
+      it('should not tap into assetEmitted hook', () => {
+        expect(compiler.hooks.assetEmitted.tapPromise).not.toHaveBeenCalled();
+      });
 
-        expect(createClient).not.toHaveBeenCalled();
+      it('should save processed assets', async () => {
+        expect(client.set).toBeCalledTimes(2);
+        expect(client.set).toHaveBeenCalledAfter(mocked(createClient));
+        expect(client.set).toHaveBeenNthCalledWith(1, 'asset1', 'source1', expect.anything());
+        expect(client.set).toHaveBeenNthCalledWith(2, 'asset2', 'source2', expect.anything());
+      });
+    });
+
+    describe('when webpack 5 and above', () => {
+      let afterEmit: Parameters<typeof compiler.hooks.afterEmit.tapPromise>[1];
+      let assetEmitted: Parameters<typeof compiler.hooks.assetEmitted.tapPromise>[1];
+
+      beforeEach(() => {
+        plugin.apply(compiler);
+        [[, afterEmit]] = mocked(compiler.hooks.afterEmit.tapPromise).mock.calls;
+        [[, assetEmitted]] = mocked(compiler.hooks.assetEmitted.tapPromise).mock.calls;
+      });
+
+      async function emit() {
+        // @ts-expect-error skip unused properties
+        await assetEmitted('asset1', { compilation, source: { source: () => 'source1' } });
+        // @ts-expect-error skip unused properties
+        await assetEmitted('asset2', { compilation, source: { source: () => 'source2' } });
+        await afterEmit(compilation);
+      }
+
+      it('should tap into hooks', () => {
+        expect(compiler.hooks.assetEmitted.tapPromise).toHaveBeenCalledTimes(1);
+        expect(compiler.hooks.afterEmit.tapPromise).toHaveBeenCalledTimes(1);
+        expect(compiler.plugin).toHaveBeenCalledTimes(0);
       });
 
       it('should initialize client using provided configuration', async () => {
-        await afterEmit(compilation);
+        await emit();
 
         expect(createClient).toHaveBeenCalledWith(options.config);
       });
 
       it('should initialize client only once', async () => {
-        await afterEmit(compilation);
+        await emit();
 
         expect(createClient).toHaveBeenCalledTimes(1);
       });
 
-      it('should not run if there are compilation errors', async () => {
-        compilation.errors.push(new WebpackError('error'));
+      it('should not initialize client if the were no assets', async () => {
         await afterEmit(compilation);
 
         expect(createClient).not.toHaveBeenCalled();
       });
 
       it('should save processed assets', async () => {
-        await afterEmit(compilation);
+        await emit();
 
         expect(client.set).toBeCalledTimes(2);
         expect(client.set).toHaveBeenCalledAfter(mocked(createClient));
@@ -100,7 +133,7 @@ describe('WebpackRedisPlugin', () => {
       });
 
       it('should close connection in the end', async () => {
-        await afterEmit(compilation);
+        await emit();
 
         expect(client.quit).toBeCalledTimes(1);
         expect(client.quit).toHaveBeenCalledAfter(mocked(client.set));
@@ -109,7 +142,7 @@ describe('WebpackRedisPlugin', () => {
       it('should filter certain assets', async () => {
         options.filter.mockReturnValueOnce(true);
         options.filter.mockReturnValueOnce(false);
-        await afterEmit(compilation);
+        await emit();
 
         expect(client.set).toBeCalledTimes(1);
         expect(client.set).toHaveBeenCalledWith('asset1', 'source1', expect.anything());
@@ -120,22 +153,37 @@ describe('WebpackRedisPlugin', () => {
           key: `${key} ${key}`,
           value: `${asset.source()} ${asset.source()}`,
         }));
-        await afterEmit(compilation);
+
+        await emit();
 
         expect(client.set).toHaveBeenNthCalledWith(1, 'asset1 asset1', 'source1 source1', expect.anything());
         expect(client.set).toHaveBeenNthCalledWith(2, 'asset2 asset2', 'source2 source2', expect.anything());
       });
 
       it('should handle errors', async () => {
-        const error = new Error('something');
-        client.set.mockImplementationOnce(() => {
-          throw error;
+        options.filter.mockImplementationOnce(() => {
+          // eslint-disable-next-line no-throw-literal
+          throw 'error1';
         });
 
-        await afterEmit(compilation);
+        client.set.mockImplementationOnce(() => {
+          throw new Error('error2');
+        });
 
-        expect(compilation.errors).toContainEqual(error);
-        expect(client.end).toHaveBeenCalled();
+        await emit();
+
+        expect(compilation.errors).toContainEqual(new Error('error1'));
+        expect(compilation.errors).toContainEqual(new Error('error2'));
+        expect(client.quit).toHaveBeenCalled();
+      });
+
+      it('should save processed assets', async () => {
+        await emit();
+
+        expect(client.set).toBeCalledTimes(2);
+        expect(client.set).toHaveBeenCalledAfter(mocked(createClient));
+        expect(client.set).toHaveBeenNthCalledWith(1, 'asset1', 'source1', expect.anything());
+        expect(client.set).toHaveBeenNthCalledWith(2, 'asset2', 'source2', expect.anything());
       });
     });
   });

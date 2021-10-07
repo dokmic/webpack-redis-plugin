@@ -40,7 +40,7 @@ jobs:
           - 6379:6379
     strategy:
       matrix:
-        webpack: [2, 3, 4]
+        webpack: [2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2
