@@ -43,7 +43,7 @@ interface WebpackRedisPluginOptions {
    * @param key Relative asset path.
    * @param asset Webpack asset.
    */
-  filter?(key: string, asset: Source): boolean;
+  filter?(key: string, asset: Source): boolean | Promise<boolean>;
 
   /**
    * The callback function transforms keys and values that will be set in Redis.
@@ -52,7 +52,7 @@ interface WebpackRedisPluginOptions {
    * @param asset Webpack asset.
    * @returns A key-value pair.
    */
-  transform?(key: string, asset: Source): KeyValuePair;
+  transform?(key: string, asset: Source): KeyValuePair | Promise<KeyValuePair>;
 }
 
 function isWebpackBelow4(compiler: Compiler) {
@@ -124,11 +124,11 @@ export class WebpackRedisPlugin implements WebpackPluginInstance {
 
   private async assetEmitted(name: string, info: Pick<AssetEmittedInfo, 'compilation' | 'source'>) {
     try {
-      if (!this.options.filter(name, info.source)) {
+      if (!(await this.options.filter(name, info.source))) {
         return;
       }
 
-      const { key, value } = this.options.transform(name, info.source);
+      const { key, value } = await this.options.transform(name, info.source);
 
       if (!this.client) {
         this.client = this.getClient();

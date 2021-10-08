@@ -160,6 +160,16 @@ describe('WebpackRedisPlugin', () => {
         expect(client.set).toHaveBeenNthCalledWith(2, 'asset2 asset2', 'source2 source2', expect.anything());
       });
 
+      it('should support asynchronous callback options', async () => {
+        options.filter.mockResolvedValueOnce(false);
+        options.filter.mockResolvedValueOnce(true);
+        options.transform.mockResolvedValueOnce({ key: 'something', value: 'something' });
+        await emit();
+
+        expect(client.set).toBeCalledTimes(1);
+        expect(client.set).toHaveBeenCalledWith('something', 'something', expect.anything());
+      });
+
       it('should handle errors', async () => {
         options.filter.mockImplementationOnce(() => {
           // eslint-disable-next-line no-throw-literal
