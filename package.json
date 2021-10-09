@@ -1,10 +1,11 @@
 {
   "name": "webpack-redis-plugin",
   "version": "1.0.0",
-  "description": "Webpack redis integration",
+  "description": "Webpack Redis Integration",
   "keywords": [
     "webpack",
-    "redis"
+    "redis",
+    "plugin"
   ],
   "author": "Michael Dokolin <m@dokol.in>",
   "license": "MIT",

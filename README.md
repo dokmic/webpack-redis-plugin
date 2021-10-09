@@ -1,10 +1,10 @@
 # Webpack Redis Plugin
 
 [![NPM](https://img.shields.io/npm/v/webpack-redis-plugin.svg)](https://www.npmjs.com/package/webpack-redis-plugin)
-[![Build Status](https://travis-ci.org/dokmic/webpack-redis-plugin.svg?branch=master)](https://travis-ci.org/dokmic/webpack-redis-plugin)
+[![Build Status](https://github.com/dokmic/webpack-redis-plugin/actions/workflows/main.yaml/badge.svg?branch=master)](https://github.com/dokmic/webpack-redis-plugin/actions/workflows/main.yaml)
 [![Code Coverage](https://codecov.io/gh/dokmic/webpack-redis-plugin/badge.svg?branch=master)](https://codecov.io/gh/dokmic/webpack-redis-plugin?branch=master)
 
-This webpack plugin provides an ability to save your assets in [Redis](https://redis.io/).
+This Webpack plugin provides an ability to save your assets in [Redis](https://redis.io/). The plugin supports _all_ the Webpack versions and is [tested](https://github.com/dokmic/webpack-redis-plugin/actions/workflows/main.yaml) with Webpack 2, 3, 4, and 5.
 
 ## Install
 ```bash
@@ -14,8 +14,8 @@ npm install --save-dev webpack-redis-plugin
 ## Usage
 In your `webpack.config.js`:
 ```javascript
-const WebpackRedisPlugin = require('webpack-redis-plugin'),
-  sha1 = require('sha1');
+const { WebpackRedisPlugin } = require('webpack-redis-plugin');
+const sha1 = require('sha1');
 
 module.exports = {
   entry: {
@@ -39,40 +39,36 @@ module.exports = {
         host: 'redis.example.com',
         password: 'password',
       },
-      filter: (key, asset) => {
-        return key === 'js/page1.js' && asset.size();
-      },
-      transform: (key, asset) => Object({
-        key: key + '.sha1',
-        value: sha1(asset.source()),
+
+      filter: (key, asset) => key === 'js/page1.js' && asset.size(),
+
+      transform: (key, asset) => ({
+        key: `${key}.sha1`,
+        value: sha1(asset.source().toString()),
       }),
     }),
   ],
 };
 ```
 
-This config tells the plugin to filter out everything except non-empty `js/page1.js` and save a hash sum of the contents at `js/page1.js.sha1` key.
+This config tells the plugin to filter out everything except non-empty `js/page1.js` and save a hash sum of the contents at the `js/page1.js.sha1` key.
 
 ## API
 
 ### `options.config`
 Redis client configuration. All possible options can be found [here](https://www.npmjs.com/package/redis#options-object-properties).
 
-### `options.filter`
-The callback function filters keys/assets that will be set in Redis:
+**Default:** `undefined`
 
-```javascript
-Function(
-  key: string,
-  asset: {
-    size: Function(): number,
-    source: Function(): string,
-  }
-): boolean
+### `options.filter`
+The callback function to filter keys/assets that will be set in Redis:
+
+```typescript
+filter(key: string, asset: Source): boolean | Promise<boolean>;
 ```
 
-- `key` - the destination file name relative to your output directory.
-- `asset` - related webpack asset.
+- `key` - relative asset path.
+- `asset` - Webpack asset.
 
 **Default:** `() => true`
 
@@ -80,15 +76,10 @@ Function(
 The callback function transforms keys and values that will be set in Redis:
 
 ```javascript
-Function(
-  key: string,
-  asset: {
-    size: Function(): number,
-    source: Function(): string,
-  }
-): { key: string, value: string }
+transform(key: string, asset: Source): KeyValuePair | Promise<KeyValuePair>
 ```
-- `key` - the destination file name relative to your output directory.
-- `asset` - related webpack asset.
 
-**Default:** `(key, asset) => { key, value: asset.source() }`
+- `key` - relative asset path.
+- `asset` - Webpack asset.
+
+**Default:** `(key, asset) => ({ key, value: asset.source() })`
