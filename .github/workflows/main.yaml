@@ -23,7 +23,7 @@ jobs:
       - run: npm install
       - run: npm run lint
       - run: npm run test
-      - run: npm run coverage
+      - uses: codecov/codecov-action@v2
 
   integration:
     name: Integration Tests

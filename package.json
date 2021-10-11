@@ -24,7 +24,6 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "rollup -c",
-    "coverage": "codecov",
     "lint": "eslint --ext ts src/",
     "test": "jest --coverage"
   },
@@ -44,7 +43,6 @@
     "@typescript-eslint/eslint-plugin": "^4.33",
     "@typescript-eslint/parser": "^4.33",
     "builtin-modules": "^3.2",
-    "codecov": "^3.8",
     "eslint": "^7.32",
     "eslint-config-airbnb": "^18.2",
     "eslint-config-prettier": "^8.3",
