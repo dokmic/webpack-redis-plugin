@@ -1,7 +1,7 @@
 # Webpack Redis Plugin
 
 [![NPM](https://img.shields.io/npm/v/webpack-redis-plugin.svg)](https://www.npmjs.com/package/webpack-redis-plugin)
-[![Build Status](https://github.com/dokmic/webpack-redis-plugin/actions/workflows/main.yaml/badge.svg?branch=master)](https://github.com/dokmic/webpack-redis-plugin/actions/workflows/main.yaml)
+[![Tests](https://github.com/dokmic/webpack-redis-plugin/actions/workflows/tests.yaml/badge.svg?branch=master)](https://github.com/dokmic/webpack-redis-plugin/actions/workflows/tests.yaml)
 [![Code Coverage](https://codecov.io/gh/dokmic/webpack-redis-plugin/badge.svg?branch=master)](https://codecov.io/gh/dokmic/webpack-redis-plugin?branch=master)
 
 This Webpack plugin provides an ability to save your assets in [Redis](https://redis.io/). The plugin supports _all_ the Webpack versions and is [tested](https://github.com/dokmic/webpack-redis-plugin/actions/workflows/main.yaml) with Webpack 2, 3, 4, and 5.

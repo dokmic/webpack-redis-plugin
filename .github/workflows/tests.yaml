@@ -1,15 +1,22 @@
-name: Webpack Redis Plugin
+name: Tests
 
 on:
   push:
     branches: [master]
   pull_request:
     branches: [master]
-  release:
-    types: [created, published]
 
 jobs:
-  tests:
+  linter:
+    name: Linter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+      - run: npm install
+      - run: npm run lint
+
+  unit:
     name: Unit Tests
     runs-on: ubuntu-latest
     strategy:
@@ -21,7 +28,6 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm install
-      - run: npm run lint
       - run: npm run test
       - uses: codecov/codecov-action@v2
 
@@ -45,26 +51,8 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2
       - run: npm install
-      - run: npm run build
       - run: npm --prefix tests/webpack${{ matrix.webpack }} install
       - run: npm --prefix tests/webpack${{ matrix.webpack }} run build
       - run: >-
           docker exec ${{ job.services.redis.id }} redis-cli --raw get webpack-redis-plugin
           | diff --brief --ignore-space-change - tests/webpack${{ matrix.webpack }}/dist/main.js
-
-  publish:
-    name: Publish
-    if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
-    needs: [tests, integration]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '16.x'
-          registry-url: 'https://registry.npmjs.org'
-      - run: npm install
-      - run: npm run build
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
